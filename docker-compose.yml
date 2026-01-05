@@ -1,0 +1,152 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:${POSTGRES_VERSION:-16}
+    container_name: wf-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-wf_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wf_password}
+      POSTGRES_DB: ${POSTGRES_DB:-wf_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-wf_user} -d ${POSTGRES_DB:-wf_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  n8n:
+    image: n8nio/n8n:${N8N_VERSION:-1.120.3}
+    container_name: wf-n8n
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "5678:5678"
+    environment:
+      # Core
+      NODE_ENV: production
+      N8N_HOST: ${N8N_HOST:-localhost}
+      N8N_PORT: 5678
+      N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
+      N8N_EDITOR_BASE_URL: ${N8N_EDITOR_BASE_URL:-http://localhost:5678}
+      WEBHOOK_URL: ${WEBHOOK_URL:-http://localhost:5678}
+
+      # Auth (recommended for anything beyond quick local testing)
+      N8N_BASIC_AUTH_ACTIVE: ${N8N_BASIC_AUTH_ACTIVE:-true}
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER:-admin}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD:-adminadmin}
+
+      # Database (n8n will default to SQLite if any of these are missing)
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: ${POSTGRES_DB:-wf_db}
+      DB_POSTGRESDB_USER: ${POSTGRES_USER:-wf_user}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:-wf_password}
+
+      # Metrics for Prometheus scraping
+      N8N_METRICS: "true"
+      N8N_METRICS_PREFIX: "n8n_"
+      N8N_METRICS_INCLUDE_DEFAULT_METRICS: "true"
+
+      # Logging to file for Loki via Promtail
+      N8N_LOG_LEVEL: ${N8N_LOG_LEVEL:-info}
+      N8N_LOG_FORMAT: json
+      N8N_LOG_OUTPUT: console,file
+      N8N_LOG_FILE_LOCATION: /var/log/n8n/n8n.log
+
+      # Helpful hardening defaults
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+
+      # Optional: allow community nodes (keep false if you want stricter supply-chain posture)
+      N8N_COMMUNITY_PACKAGES_ENABLED: ${N8N_COMMUNITY_PACKAGES_ENABLED:-false}
+
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n/workflows:/opt/n8n-workflows:ro
+      - ./observability/logs/n8n:/var/log/n8n
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5678/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  # --- Observability (Grafana OSS + Prometheus + Loki) ---
+
+  prometheus:
+    image: prom/prometheus:${PROMETHEUS_VERSION:-v2.54.1}
+    container_name: wf-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+
+  loki:
+    image: grafana/loki:${LOKI_VERSION:-3.1.0}
+    container_name: wf-loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    command: ["-config.file=/etc/loki/config.yml"]
+    volumes:
+      - ./observability/loki/config.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+
+  promtail:
+    image: grafana/promtail:${PROMTAIL_VERSION:-3.1.0}
+    container_name: wf-promtail
+    restart: unless-stopped
+    depends_on:
+      - loki
+    command: ["-config.file=/etc/promtail/config.yml"]
+    volumes:
+      - ./observability/promtail/config.yml:/etc/promtail/config.yml:ro
+      - ./observability/logs/n8n:/var/log/n8n:ro
+      - promtail_positions:/tmp
+
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:${POSTGRES_EXPORTER_VERSION:-v0.15.0}
+    container_name: wf-postgres-exporter
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER:-wf_user}:${POSTGRES_PASSWORD:-wf_password}@postgres:5432/${POSTGRES_DB:-wf_db}?sslmode=disable
+    ports:
+      - "9187:9187"
+
+  grafana:
+    image: grafana/grafana-oss:${GRAFANA_VERSION:-11.1.5}
+    container_name: wf-grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+      - loki
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-adminadmin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+
+volumes:
+  postgres_data:
+  n8n_data:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+  promtail_positions:

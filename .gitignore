@@ -1,0 +1,12 @@
+# Secrets
+.env
+
+# Data / state
+observability/logs/
+!observability/logs/.gitkeep
+
+# Docker volumes (if any)
+**/*.db
+
+# OS
+.DS_Store

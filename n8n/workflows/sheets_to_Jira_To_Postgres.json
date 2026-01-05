@@ -1,0 +1,255 @@
+{
+  "name": "sheets_to_Jira_To_Postgres",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "documentId": {
+          "__rl": true,
+          "value": "1uAjFrO1Hihm_BwUNiBU_I3V6k9W5H_a-t4eabQCrXNE",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "0",
+          "mode": "id"
+        },
+        "event": "rowAdded",
+        "options": {
+          "dataLocationOnSheet": {
+            "values": {
+              "rangeDefinition": "specifyRange"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [
+        -416,
+        -144
+      ],
+      "id": "36dc54eb-d686-4027-a6d6-7cb40705385d",
+      "name": "Google Sheets Trigger",
+      "credentials": {
+        "googleSheetsTriggerOAuth2Api": {
+          "id": "SfGI4N9qYKaYMfVf",
+          "name": "Google Sheets Trigger account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "project": {
+          "__rl": true,
+          "value": "10628",
+          "mode": "list",
+          "cachedResultName": "N8N"
+        },
+        "issueType": {
+          "__rl": true,
+          "value": "10008",
+          "mode": "list",
+          "cachedResultName": "Bug"
+        },
+        "summary": "={{ $json.Summary }}",
+        "additionalFields": {
+          "description": "={{ $json.Description }}"
+        }
+      },
+      "type": "n8n-nodes-base.jira",
+      "typeVersion": 1,
+      "position": [
+        -32,
+        -144
+      ],
+      "id": "046fbc6e-31c7-4ec5-af0f-a70962fcd5cd",
+      "name": "Create an issue",
+      "credentials": {
+        "jiraSoftwareCloudApi": {
+          "id": "o5dtMTQolPrySCBp",
+          "name": "Jira SW Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "sync_log",
+          "mode": "list",
+          "cachedResultName": "sync_log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{$execution.id}}",
+            "source": "={{ $('Google Sheets Trigger') }}",
+            "action": "=Create Jira ticket",
+            "source_ref": "={{ $workflow.id }}",
+            "status": "={{ $runIndex }}",
+            "details": "={{ $json }}",
+            "created_at": "={{ $now }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source_ref",
+              "displayName": "source_ref",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "action",
+              "displayName": "action",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "details",
+              "displayName": "details",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        304,
+        -144
+      ],
+      "id": "28707a4b-11f3-4331-983d-3c9930a4e37f",
+      "name": "Insert rows in a table",
+      "credentials": {
+        "postgres": {
+          "id": "jBUbeoCnujyfeprq",
+          "name": "Postgres account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Sheets Trigger": {
+      "main": [
+        [
+          {
+            "node": "Create an issue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert rows in a table": {
+      "main": [
+        []
+      ]
+    },
+    "Create an issue": {
+      "main": [
+        [
+          {
+            "node": "Insert rows in a table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "2090f56a-74b1-44c0-8190-fa58bbc4d446",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e2fc7d6e1458b3728f9ac5ac23cbfa8b57cf7e285163a7cb1017a83271e988d4"
+  },
+  "id": "02bTGJMQ7AszGmbE",
+  "tags": [
+    {
+      "name": "sheets",
+      "id": "QnMR3r5DLR2ITtry",
+      "updatedAt": "2026-01-05T22:19:50.834Z",
+      "createdAt": "2026-01-05T22:19:50.834Z"
+    },
+    {
+      "name": "jira",
+      "id": "WEpUCuKrvWCrwTpo",
+      "updatedAt": "2026-01-05T22:19:53.940Z",
+      "createdAt": "2026-01-05T22:19:53.940Z"
+    },
+    {
+      "name": "postgres",
+      "id": "kEM0oQZJzkEtLaI8",
+      "updatedAt": "2026-01-05T22:19:57.963Z",
+      "createdAt": "2026-01-05T22:19:57.963Z"
+    }
+  ]
+}
