@@ -187,7 +187,7 @@ This dataset enables:
 ### Clone
 
 ```bash
-git clone <YOUR_REPO_URL>.git
+git clone git@github.com:hlosukwakha/gs-n8n-jira-postgres-observability.git
 cd gs-n8n-jira-postgres-observability
 ```
 
